@@ -11,12 +11,19 @@ const MOCK_API = {
     getCandidates: async (): Promise<Candidate[]> => {
         await MOCK_API.delay(800);
         const stored = localStorage.getItem('candidates');
+        
+        if (stored) {
+            return JSON.parse(stored);
+        }
+
         const initialCandidates: Candidate[] = [
           { id: 'c1', name: 'Aarav Sharma', party: 'Progressive Party', photoUrl: 'https://picsum.photos/seed/aarav/400/400', description: 'Focused on economic growth and technological innovation.', votes: 125 },
           { id: 'c2', name: 'Saanvi Patel', party: 'Unity Alliance', photoUrl: 'https://picsum.photos/seed/saanvi/400/400', description: 'Advocating for social justice and environmental protection.', votes: 110 },
           { id: 'c3', name: 'Vikram Singh', party: 'National Vision Party', photoUrl: 'https://picsum.photos/seed/vikram/400/400', description: 'Championing traditional values and national security.', votes: 95 },
         ];
-        return stored ? JSON.parse(stored) : initialCandidates;
+        // Persist initial data if it doesn't exist to ensure consistency.
+        localStorage.setItem('candidates', JSON.stringify(initialCandidates));
+        return initialCandidates;
     },
 
     // Simulates GET /api/users
@@ -74,6 +81,19 @@ export const useVotingData = () => {
 
   useEffect(() => {
     fetchData();
+
+    // Add storage event listener to sync data across tabs.
+    const handleStorageChange = (event: StorageEvent) => {
+        if (event.key === 'users' || event.key === 'candidates' || event.key === 'logs') {
+            fetchData();
+        }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+        window.removeEventListener('storage', handleStorageChange);
+    };
   }, [fetchData]);
 
   // Fix: Add function to create a new audit log entry.

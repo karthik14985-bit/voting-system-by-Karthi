@@ -16,6 +16,17 @@ const CandidateForm: React.FC<{
     const [photoUrl, setPhotoUrl] = useState(candidateToEdit?.photoUrl || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPhotoUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -38,10 +49,29 @@ const CandidateForm: React.FC<{
             <fieldset disabled={isSubmitting}>
                 <Input id="name" label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
                 <Input id="party" label="Party" value={party} onChange={(e) => setParty(e.target.value)} required />
-                <Input id="photoUrl" label="Photo URL (optional)" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} />
+                
+                <div>
+                    <label htmlFor="photo" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Candidate Photo
+                    </label>
+                    <div className="mt-1 flex items-center space-x-4">
+                         {photoUrl && (
+                            <img src={photoUrl} alt="Candidate preview" className="w-16 h-16 rounded-full object-cover bg-gray-200 dark:bg-gray-700" />
+                        )}
+                        <input
+                            id="photo"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600"
+                        />
+                    </div>
+                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">If no image is uploaded, a placeholder will be generated.</p>
+                </div>
+
                 <div>
                     <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
-                    <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required rows={4} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                    <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} required rows={3} className="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
                 </div>
             </fieldset>
             <div className="flex justify-end space-x-3 pt-4">
