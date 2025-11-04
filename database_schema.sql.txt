@@ -1,0 +1,87 @@
+-- SQL Schema for Digital Voting System on Supabase (PostgreSQL)
+
+-- Best practice: Enable Row Level Security (RLS) for all tables.
+-- Access policies will be defined separately to control data access.
+
+-- 1. Users Table
+-- Stores voter information. Passwords and Aadhaar numbers should be handled
+-- by secure backend services and encrypted at rest.
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name VARCHAR(255) NOT NULL,
+    age INT NOT NULL CHECK (age >= 18),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL, -- Hashed with bcrypt or Argon2 on the backend
+    aadhaar_number_encrypted TEXT UNIQUE NOT NULL, -- Encrypted (e.g., AES-256) on the backend
+    has_voted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+COMMENT ON COLUMN users.password_hash IS 'Stores the hashed password using a strong, salted algorithm like bcrypt.';
+COMMENT ON COLUMN users.aadhaar_number_encrypted IS 'Stores the encrypted Aadhaar number to protect sensitive data.';
+
+-- 2. Candidates Table
+-- Stores candidate information.
+CREATE TABLE candidates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    party VARCHAR(255) NOT NULL,
+    photo_url TEXT,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE candidates ENABLE ROW LEVEL SECURITY;
+
+-- 3. Votes Table
+-- Records each vote transactionally. This is a more scalable and secure
+-- model than storing vote status directly on the user or candidate record.
+CREATE TABLE votes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    candidate_id UUID NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    voted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(user_id) -- Critical constraint to ensure a user can only vote once.
+);
+ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE votes IS 'Ensures one vote per user through a unique constraint on user_id.';
+
+-- 4. Admin Action Logs Table
+-- Records all administrative actions for auditing purposes.
+CREATE TABLE admin_action_logs (
+    id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
+    action TEXT NOT NULL
+    -- In a multi-admin system, you would add an admin_id foreign key here.
+    -- admin_id UUID REFERENCES admins(id)
+);
+ALTER TABLE admin_action_logs ENABLE ROW LEVEL SECURITY;
+
+-- Example RLS Policies (to be adapted based on your auth rules)
+-- CREATE POLICY "Allow public read access to candidates" ON candidates FOR SELECT USING (true);
+-- CREATE POLICY "Allow users to see their own record" ON users FOR SELECT USING (auth.uid() = id);
+
+
+-- Stored procedure to handle casting a vote atomically and prevent race conditions.
+-- This should be called via RPC from your Flask backend.
+CREATE OR REPLACE FUNCTION cast_vote_for_user(
+    p_user_id UUID,
+    p_candidate_id UUID
+)
+RETURNS VOID AS $$
+BEGIN
+    -- First, verify the user has not already voted by checking the `users` table flag.
+    -- This is a fast check before attempting the more expensive insert.
+    IF (SELECT has_voted FROM users WHERE id = p_user_id) THEN
+        RAISE EXCEPTION 'User has already voted.';
+    END IF;
+
+    -- Insert the new vote into the `votes` table. The unique constraint on user_id provides the ultimate guarantee.
+    INSERT INTO votes (user_id, candidate_id)
+    VALUES (p_user_id, p_candidate_id);
+
+    -- If the insert is successful, update the user's status. This makes future checks faster.
+    UPDATE users
+    SET has_voted = TRUE
+    WHERE id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
