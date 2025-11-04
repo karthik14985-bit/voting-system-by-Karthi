@@ -1,27 +1,22 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { View } from './types';
 import VoterLogin from './components/voter/VoterLogin';
 import VoterRegistration from './components/voter/VoterRegistration';
 import VotingDashboard from './components/voter/VotingDashboard';
-import AdminLogin from './components/admin/AdminLogin';
-import AdminDashboard from './components/admin/AdminDashboard';
 import Header from './components/Header';
 import LandingPage from './components/LandingPage';
 
 const AppContent: React.FC = () => {
     const [currentView, setCurrentView] = useState<View>(View.LANDING);
-    const { user, isAdmin, logout } = useAuth();
+    const { user } = useAuth();
 
     const handleNavigation = (view: View) => {
         setCurrentView(view);
     };
 
     const renderContent = () => {
-        if (isAdmin) {
-            return <AdminDashboard />;
-        }
         if (user) {
             return <VotingDashboard />;
         }
@@ -31,8 +26,6 @@ const AppContent: React.FC = () => {
                 return <VoterLogin onNavigate={handleNavigation} />;
             case View.VOTER_REGISTER:
                 return <VoterRegistration onNavigate={handleNavigation} />;
-            case View.ADMIN_LOGIN:
-                return <AdminLogin onNavigate={handleNavigation} />;
             case View.LANDING:
             default:
                 return <LandingPage onNavigate={handleNavigation} />;

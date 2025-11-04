@@ -21,10 +21,11 @@ export interface Candidate {
   votes: number;
 }
 
-export interface AdminActionLog {
-    id: string;
-    timestamp: string;
-    action: string;
+// Fix: Add Log interface for admin audit logs.
+export interface Log {
+  id: string;
+  action: string;
+  timestamp: number;
 }
 
 export enum View {
@@ -32,6 +33,7 @@ export enum View {
   VOTER_LOGIN,
   VOTER_REGISTER,
   VOTER_DASHBOARD,
+  // Fix: Add ADMIN_LOGIN and ADMIN_DASHBOARD to support admin views.
   ADMIN_LOGIN,
-  ADMIN_DASHBOARD
+  ADMIN_DASHBOARD,
 }

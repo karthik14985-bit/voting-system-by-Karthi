@@ -10,14 +10,14 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
-    const { user, isAdmin, logout } = useAuth();
+    const { user, logout } = useAuth();
     
     const handleLogout = () => {
         logout();
         onNavigate(View.LANDING);
     }
     
-    const showBackButton = ![View.LANDING, View.VOTER_DASHBOARD, View.ADMIN_DASHBOARD].includes(currentView) && !user && !isAdmin;
+    const showBackButton = ![View.LANDING, View.VOTER_DASHBOARD].includes(currentView) && !user;
 
     return (
         <header className="bg-white dark:bg-gray-800 shadow-md">
@@ -32,7 +32,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onNavigate }) => {
                     )}
                     <h1 className="text-2xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">🗳️ Digital Voting System</h1>
                 </div>
-                {(user || isAdmin) && (
+                {user && (
                     <div className="w-24">
                         <Button onClick={handleLogout} variant="secondary">
                             Logout

@@ -4,10 +4,10 @@ import { ADMIN_CREDENTIALS } from '../constants';
 
 interface AuthContextType {
   user: User | null;
-  isAdmin: boolean;
   token: string | null;
   isLoading: boolean;
   login: (email: string, passwordHash: string) => Promise<void>;
+  // Fix: Add adminLogin to the context type to fix error in AdminLogin component.
   adminLogin: (email: string, passwordHash: string) => Promise<void>;
   logout: () => void;
   setUser: Dispatch<SetStateAction<User | null>>;
@@ -17,7 +17,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [token, setToken] = useState<string | null>(() => sessionStorage.getItem('authToken'));
   const [isLoading, setIsLoading] = useState(true);
 
@@ -27,16 +26,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(true);
         const savedToken = sessionStorage.getItem('authToken');
         const savedUser = sessionStorage.getItem('user');
-        const savedIsAdmin = sessionStorage.getItem('isAdmin');
 
-        if (savedToken) {
+        if (savedToken && savedUser) {
             setToken(savedToken);
-            if (savedUser) {
-                setUser(JSON.parse(savedUser));
-            }
-            if (savedIsAdmin) {
-                setIsAdmin(JSON.parse(savedIsAdmin));
-            }
+            setUser(JSON.parse(savedUser));
         }
         setIsLoading(false);
     };
@@ -57,12 +50,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const fakeToken = `fake-voter-jwt.${btoa(JSON.stringify({ sub: foundUser.id, role: 'voter' }))}`;
       
       setUser(userToStore);
-      setIsAdmin(false);
       setToken(fakeToken);
 
       sessionStorage.setItem('authToken', fakeToken);
       sessionStorage.setItem('user', JSON.stringify(userToStore));
-      sessionStorage.setItem('isAdmin', 'false');
     } else {
       setIsLoading(false);
       throw new Error("Invalid email or password.");
@@ -70,37 +61,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(false);
   };
 
+  // Fix: Implement adminLogin function to handle admin authentication.
   const adminLogin = async (email: string, passwordHash: string): Promise<void> => {
     setIsLoading(true);
-    // Simulate API call to Flask backend: POST /api/admin/login
-    await new Promise(res => setTimeout(res, 1000));
+    await new Promise(res => setTimeout(res, 500));
 
     if (email === ADMIN_CREDENTIALS.email && passwordHash === ADMIN_CREDENTIALS.password) {
-      const fakeToken = `fake-admin-jwt.${btoa(JSON.stringify({ sub: 'admin-user', role: 'admin' }))}`;
-      
-      setIsAdmin(true);
-      setUser(null);
-      setToken(fakeToken);
+        const adminUser: User = {
+            id: 'admin001',
+            fullName: 'Administrator',
+            email: email,
+            votedCandidateId: null
+        };
+        const fakeToken = `fake-admin-jwt.${btoa(JSON.stringify({ sub: adminUser.id, role: 'admin' }))}`;
 
-      sessionStorage.setItem('authToken', fakeToken);
-      sessionStorage.setItem('isAdmin', 'true');
-      sessionStorage.removeItem('user');
+        setUser(adminUser);
+        setToken(fakeToken);
+
+        sessionStorage.setItem('authToken', fakeToken);
+        sessionStorage.setItem('user', JSON.stringify(adminUser));
     } else {
-      setIsLoading(false);
-      throw new Error("Invalid admin credentials.");
+        setIsLoading(false);
+        throw new Error("Invalid admin credentials.");
     }
     setIsLoading(false);
   };
 
   const logout = () => {
     setUser(null);
-    setIsAdmin(false);
     setToken(null);
     sessionStorage.clear();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, token, isLoading, login, adminLogin, logout, setUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, adminLogin, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

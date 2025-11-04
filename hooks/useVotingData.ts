@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { User, Candidate, AdminActionLog, UserRegistrationData } from '../types';
+// Fix: Import Log type for audit logs.
+import type { User, Candidate, UserRegistrationData, Log } from '../types';
 
 // This section simulates a backend API interacting with a database (localStorage in this case).
 // In a real app, these would be `fetch` calls to your Flask backend endpoints.
@@ -18,13 +19,6 @@ const MOCK_API = {
         return stored ? JSON.parse(stored) : initialCandidates;
     },
 
-    // Simulates GET /api/admin/logs
-    getLogs: async (): Promise<AdminActionLog[]> => {
-        await MOCK_API.delay(400);
-        const stored = localStorage.getItem('adminLogs');
-        return stored ? JSON.parse(stored) : [];
-    },
-
     // Simulates GET /api/users
     getUsers: async (): Promise<User[]> => {
         await MOCK_API.delay(600);
@@ -32,8 +26,16 @@ const MOCK_API = {
         return stored ? JSON.parse(stored) : [];
     },
 
+    // Fix: Add getLogs to simulate fetching audit logs.
+    getLogs: async (): Promise<Log[]> => {
+        await MOCK_API.delay(300);
+        const stored = localStorage.getItem('logs');
+        return stored ? JSON.parse(stored) : [];
+    },
+
+
     // Simulates saving data to the backend
-    saveData: async (key: 'users' | 'candidates' | 'adminLogs', data: any) => {
+    saveData: async (key: 'users' | 'candidates' | 'logs', data: any) => {
         await MOCK_API.delay(200);
         localStorage.setItem(key, JSON.stringify(data));
     }
@@ -43,23 +45,29 @@ const MOCK_API = {
 export const useVotingData = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [logs, setLogs] = useState<AdminActionLog[]>([]);
+  // Fix: Add state for audit logs.
+  const [logs, setLogs] = useState<Log[]>([]);
+  // Fix: Add 'logs' to the loading state object.
   const [isLoading, setIsLoading] = useState({ users: true, candidates: true, logs: true });
 
   const fetchData = useCallback(async () => {
+    // Fix: Add 'logs' to the loading state update.
     setIsLoading({ users: true, candidates: true, logs: true });
     try {
-        const [candidateData, logData, userData] = await Promise.all([
+        const [candidateData, userData, logData] = await Promise.all([
             MOCK_API.getCandidates(),
-            MOCK_API.getLogs(),
             MOCK_API.getUsers(),
+            // Fix: Fetch logs data.
+            MOCK_API.getLogs(),
         ]);
         setCandidates(candidateData);
-        setLogs(logData);
         setUsers(userData);
+        // Fix: Set logs state, sorted by most recent.
+        setLogs(logData.sort((a, b) => b.timestamp - a.timestamp));
     } catch (error) {
         console.error("Failed to fetch voting data:", error);
     } finally {
+        // Fix: Add 'logs' to the loading state update.
         setIsLoading({ users: false, candidates: false, logs: false });
     }
   }, []);
@@ -68,18 +76,20 @@ export const useVotingData = () => {
     fetchData();
   }, [fetchData]);
 
-  const logAdminAction = useCallback(async (action: string) => {
+  // Fix: Add function to create a new audit log entry.
+  const addLog = async (action: string) => {
     const currentLogs = await MOCK_API.getLogs();
-    const newLog: AdminActionLog = {
+    const newLog: Log = {
         id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
         action,
+        timestamp: Date.now(),
     };
     const updatedLogs = [newLog, ...currentLogs];
-    await MOCK_API.saveData('adminLogs', updatedLogs);
-    setLogs(updatedLogs);
-  }, []);
-  
+    await MOCK_API.saveData('logs', updatedLogs);
+    setLogs(updatedLogs.sort((a, b) => b.timestamp - a.timestamp));
+  };
+
+
   const addUser = async (user: UserRegistrationData): Promise<{ success: boolean, message: string }> => {
     const currentUsers = await MOCK_API.getUsers();
     if (currentUsers.some(u => u.email === user.email)) {
@@ -118,33 +128,42 @@ export const useVotingData = () => {
     await MOCK_API.saveData('users', updatedUsers);
   };
 
+  // Fix: Add function to create a new candidate.
   const addCandidate = async (candidateData: Omit<Candidate, 'id' | 'votes'>) => {
-    await logAdminAction(`Added candidate: ${candidateData.name}`);
     const currentCandidates = await MOCK_API.getCandidates();
-    const newCandidate: Candidate = { ...candidateData, id: Date.now().toString(), votes: 0 };
+    const newCandidate: Candidate = {
+        ...candidateData,
+        id: `c${Date.now()}`,
+        votes: 0,
+    };
     const updatedCandidates = [...currentCandidates, newCandidate];
     await MOCK_API.saveData('candidates', updatedCandidates);
     setCandidates(updatedCandidates);
+    await addLog(`Added new candidate: ${newCandidate.name}`);
   };
 
+  // Fix: Add function to update an existing candidate.
   const updateCandidate = async (updatedCandidate: Candidate) => {
-    await logAdminAction(`Updated candidate: ${updatedCandidate.name}`);
     const currentCandidates = await MOCK_API.getCandidates();
     const updatedCandidates = currentCandidates.map(c => c.id === updatedCandidate.id ? updatedCandidate : c);
     await MOCK_API.saveData('candidates', updatedCandidates);
     setCandidates(updatedCandidates);
+    await addLog(`Updated candidate details for: ${updatedCandidate.name}`);
   };
-  
+
+  // Fix: Add function to delete a candidate.
   const deleteCandidate = async (candidateId: string) => {
     const currentCandidates = await MOCK_API.getCandidates();
     const candidateToDelete = currentCandidates.find(c => c.id === candidateId);
-    if(candidateToDelete) {
-        await logAdminAction(`Deleted candidate: ${candidateToDelete.name}`);
-    }
     const updatedCandidates = currentCandidates.filter(c => c.id !== candidateId);
     await MOCK_API.saveData('candidates', updatedCandidates);
     setCandidates(updatedCandidates);
+    if (candidateToDelete) {
+        await addLog(`Deleted candidate: ${candidateToDelete.name}`);
+    }
   };
 
+
+  // Fix: Export new state and functions for admin components.
   return { users, candidates, logs, isLoading, addUser, castVote, updateUserFromVoter, addCandidate, updateCandidate, deleteCandidate };
 };
